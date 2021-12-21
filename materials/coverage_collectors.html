@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<!-- saved from url=(0046)file:///tmp/cover379104341/coverage.html#file0 -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+		
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">bb.yandex-team.ru/cloud/cloud-go/healthcheck/ylb-duty/diff/collectors/index.go (90.5%)</option>
+				
+				<option value="file1">bb.yandex-team.ru/cloud/cloud-go/healthcheck/ylb-duty/diff/collectors/indexes.go (100.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: block;">package collectors
+
+import (
+        "context"
+        "database/sql"
+        "fmt"
+
+        common "bb.yandex-team.ru/cloud/cloud-go/healthcheck/ylb-duty"
+)
+
+// Index stores data whose consistency needs to be checked
+type Index struct {
+        base_table  string
+        index_table string
+        base_keys   []string
+        index_keys  []string
+}
+
+var (
+        INDEXES = []Index{
+                Index{
+                        base_table:  "healthcheck_targets",
+                        index_table: "healthcheck_targets__healthcheck_id__addr_id__target_id__index",
+                        base_keys:   []string{"id", "healthcheck_id", "addr_id"},
+                        index_keys:  []string{"target_id", "healthcheck_id", "addr_id"},
+                },
+                Index{
+                        base_table:  "healthcheck_targets",
+                        index_table: "healthcheck_targets__zone_id__target_id__index",
+                        base_keys:   []string{"id", "zone_id"},
+                        index_keys:  []string{"target_id", "zone_id"},
+                },
+                Index{
+                        base_table:  "healthcheck_group_healthchecks",
+                        index_table: "healthcheck_group_healthchecks__healthcheck_id__group_external_id__index",
+                        base_keys:   []string{"group_external_id", "healthcheck_id"},
+                        index_keys:  []string{"group_external_id", "healthcheck_id"},
+                },
+                Index{
+                        base_table:  "healthcheck_forwarding_rules",
+                        index_table: "healthcheck_forwarding_rules_denormalization",
+                        base_keys:   []string{"id"},
+                        index_keys:  []string{"rule_id"},
+                },
+        }
+)
+
+// IndexDiffCollector is collector for diff and index commands
+type IndexDiffCollector struct {
+        config   *common.Config
+        database *sql.DB
+}
+
+// NewIndexDiffCollector creates IndexDiffCollector.
+func NewIndexDiffCollector(c *common.Config) (*IndexDiffCollector, error) <span class="cov8" title="1">{
+        db, err := sql.Open("ydb", "ydb://"+(*c).Endpoint+(*c).Database+"?auth-token=secret")
+
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">return &amp;IndexDiffCollector{config: c, database: db}, nil</span>
+}
+
+// GetDanglins checks the consistency of secondary indexes in tables from INDEXES
+func (differ *IndexDiffCollector) GetDanglings(ctx context.Context) ([]Dangling, error) <span class="cov8" title="1">{
+        danglings := []Dangling{}
+
+        var (
+                all_counts  []int
+                base_count  int
+                index_count int
+                count       int
+        )
+
+        for index := range INDEXES </span><span class="cov8" title="1">{
+                query := fmt.Sprintf(`
+                                --!syntax_v1
+                                PRAGMA TablePathPrefix("%s");
+
+                                SELECT COUNT(*) AS cnt
+                                FROM %s
+                                UNION ALL SELECT COUNT(*) AS cnt
+                                FROM %s;
+                                `,
+                        differ.config.Prefix,
+                        INDEXES[index].base_table,
+                        INDEXES[index].index_table)
+
+                ctx := context.Background()
+
+                counts, err := differ.database.QueryContext(ctx, query)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span>
+
+                <span class="cov8" title="1">for counts.Next() </span><span class="cov8" title="1">{
+                        err = counts.Scan(&amp;count)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return nil, err
+                        }</span>
+
+                        <span class="cov8" title="1">all_counts = append(all_counts, count)</span>
+                }
+
+                <span class="cov8" title="1">base_count, index_count = all_counts[0], all_counts[1]
+
+                if base_count != index_count </span><span class="cov8" title="1">{
+                        danglings = append(danglings, map[string]int{
+                                INDEXES[index].base_table:  base_count,
+                                INDEXES[index].index_table: index_count})
+
+                }</span>
+        }
+
+        <span class="cov8" title="1">return danglings, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package collectors
+
+import (
+        "context"
+
+        common "bb.yandex-team.ru/cloud/cloud-go/healthcheck/ylb-duty"
+)
+
+// IndexesCollector do command diff --kinds indexes.
+type IndexesCollector struct {
+        config *common.Config
+}
+
+// NewIndexesCollector creates new IndexesCollector
+func NewIndexesCollector(c *common.Config) *IndexesCollector <span class="cov8" title="1">{
+        return &amp;IndexesCollector{config: c}
+}</span>
+
+// GetDanglings checks secondary indexes for consistency
+func (differ *IndexesCollector) GetDanglings(ctx context.Context) (Danglings, error) <span class="cov8" title="1">{
+        diffCollector, err := NewIndexDiffCollector(differ.config)
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">return diffCollector.GetDanglings(ctx)</span>
+}
+</pre>
+		
+		</div>
+	
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+
+</body></html>
