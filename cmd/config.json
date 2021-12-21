@@ -1,0 +1,5 @@
+{
+    "endpoint" : "localhost:2135",
+    "database" : "/local",
+    "prefix"   : "local/local/load_balancer/healthcheck/"
+}
